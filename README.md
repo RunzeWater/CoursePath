@@ -1,4 +1,4 @@
-#CoursePath
+# CoursePath
 
 Plan a term at UAlberta end to end: check what you're eligible for, get a suggested course set, and turn it into a conflict-free timetable.
 
