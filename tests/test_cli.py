@@ -54,3 +54,16 @@ def test_eligible_only_with_nothing_eligible_still_exits_zero(tmp_path, capsys):
 def test_bad_courses_file_exits_two(tmp_path, capsys):
     assert main(["--courses", str(tmp_path / "nope.json"), "--eligible-only"]) == 2
     assert "error" in capsys.readouterr().err
+
+
+def test_skip_completed_hides_completed_courses(courses_file, capsys):
+    assert main(["--courses", courses_file, "--completed", "DEMO 101", "--skip-completed"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    # DEMO 101 is gone; the ineligible DEMO 301 is still shown.
+    assert [line.split(":")[0] for line in lines] == ["[YES] DEMO 201", "[NO ] DEMO 301"]
+
+
+def test_skip_completed_combines_with_eligible_only(courses_file, capsys):
+    args = ["--courses", courses_file, "--completed", "demo 101", "--skip-completed", "--eligible-only", "--json"]
+    assert main(args) == 0
+    assert [r["code"] for r in json.loads(capsys.readouterr().out)] == ["DEMO 201"]

@@ -4,6 +4,7 @@ Usage:
     python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
     python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" --json
     python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" --eligible-only
+    python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" --eligible-only --skip-completed
 
 Exit code is 0 when the file loads and the check runs (even if some courses
 are ineligible — ineligibility is a result, not an error).
@@ -25,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--completed", nargs="*", default=[], help="completed course codes, e.g. DEMO 101 DEMO 201")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON instead of text")
     parser.add_argument("--eligible-only", action="store_true", help="only output courses whose prerequisites are met")
+    parser.add_argument("--skip-completed", action="store_true", help="leave already-completed courses out of the output")
     args = parser.parse_args(argv)
 
     try:
@@ -33,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
-    results = check_all(courses, set(args.completed))
+    results = check_all(courses, set(args.completed), exclude_completed=args.skip_completed)
     if args.eligible_only:
         # Filter after the check so both the text and JSON outputs honor the flag.
         results = [r for r in results if r.eligible]
