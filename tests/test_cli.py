@@ -46,16 +46,35 @@ def test_invalid_encoding_exits_cleanly(tmp_path):
     assert "Traceback" not in result.stderr
 
 
-def test_quoted_normalized_codes_are_eligible():
-    result = run_cli("--courses", "data/sample_courses.json", "--completed", " demo  101 ", "DEMO 201", "--json")
-    assert result.returncode == 0
-    assert all(row["eligible"] for row in json.loads(result.stdout))
+@pytest.fixture
+def two_course_file(tmp_path):
+    # Self-contained courses file, so these tests do not depend on what
+    # data/sample_courses.json happens to contain.
+    data = {"courses": [
+        {"code": "DEMO 101", "prerequisite": None},
+        {"code": "DEMO 301", "prerequisite": {"op": "and", "children": [
+            {"course": "DEMO 101"},
+            {"op": "or", "children": [{"course": "DEMO 201"}, {"course": "DEMO 202"}]},
+        ]}},
+    ]}
+    path = tmp_path / "courses.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return str(path)
 
 
-def test_missing_prerequisite_is_a_result_not_an_error():
-    result = run_cli("--courses", "data/sample_courses.json", "--completed", "DEMO 101", "--json")
+def test_quoted_normalized_codes_are_eligible(two_course_file):
+    result = run_cli("--courses", two_course_file, "--completed", " demo  101 ", "DEMO 201", "--json")
     assert result.returncode == 0
-    assert json.loads(result.stdout)[1]["eligible"] is False
+    rows = json.loads(result.stdout)
+    assert [row["code"] for row in rows] == ["DEMO 101", "DEMO 301"]
+    assert all(row["eligible"] for row in rows)
+
+
+def test_missing_prerequisite_is_a_result_not_an_error(two_course_file):
+    result = run_cli("--courses", two_course_file, "--completed", "DEMO 101", "--json")
+    assert result.returncode == 0
+    rows = {row["code"]: row["eligible"] for row in json.loads(result.stdout)}
+    assert rows == {"DEMO 101": True, "DEMO 301": False}
 
 
 def test_help_shows_quoted_examples():
