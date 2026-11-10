@@ -43,13 +43,13 @@ python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "
 
 ## The problem
 
-Picking a term's courses in Ualberta means answering four question in order, and the university's tools answer none of them
+Picking a term's courses at UAlberta means answering four questions in order, and the university's tools answer none of them.
 
-Prerequisites live inside each course's own catalogue entry, writing as English sentences--"CMPUT 174 or 275, and CMPUT 272 or Math 222"
+Prerequisites live inside each course's own catalogue entry, written as English sentences, such as "CMPUT 174 or 275, and CMPUT 272 or MATH 222".
 
-The true question that student actually wants to ask:" Giving that I have passed these courses, what can I take." then of those which are even offered this term. 
-Then which five are the right five? Then do their sections fit in a week without overlapping.
-Done by hand, that's a lot of tabs and a spreadsheet.and the mistake don't surface until registration day.
+The question a student actually wants to ask is: "Given that I have passed these courses, what can I take?" Then, of those, which are even offered this term?
+Then which five are the right five? Then do their sections fit in a week without overlapping?
+Done by hand, that's a lot of tabs and a spreadsheet, and the mistakes don't surface until registration day.
 
 ## How it works
 
