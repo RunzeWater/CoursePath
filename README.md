@@ -131,15 +131,48 @@ actual reason.
 - **No waitlist, capacity, or seat-availability data.**
 ## Quickstart
 
-Install the scaffold and its test dependencies from the project folder:
+Requires Python 3.10 or newer. From the project folder:
 
 ```sh
+python -m venv .venv
+# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
+# macOS / Linux:        source .venv/bin/activate
 pip install -e ".[dev]"
-python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
-python -m pytest tests
+python -m pytest
 ```
 
-See [RUNNING.md](RUNNING.md) for the working command-line scaffold setup, sample commands, and VS Code tasks.
+Check eligibility against the bundled sample data (`DEMO` courses, not real UAlberta rules):
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
+```
+
+```
+[YES] DEMO 101: no prerequisite
+[YES] DEMO 301: has DEMO 101 and (has DEMO 201)
+```
+
+### Command-line options
+
+| Option | What it does |
+|---|---|
+| `--courses PATH` | Courses JSON file (required). |
+| `--completed CODE [CODE ...]` | Courses you have completed. Quote each code, e.g. `"DEMO 101"`; codes are case- and space-insensitive. |
+| `--json` | Print the results as JSON instead of text. |
+| `--eligible-only` | Only show courses whose prerequisites are met. |
+| `--skip-completed` | Leave courses you have already completed out of the output. |
+
+`--eligible-only` and `--skip-completed` can be combined to list what you can take next:
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 202" --eligible-only --skip-completed
+```
+
+```
+[YES] DEMO 301: has DEMO 101 and (has DEMO 202)
+```
+
+Exit code is `0` whenever the check runs, even if some courses are ineligible; `2` means the input was invalid (bad file or bad course code). See [RUNNING.md](RUNNING.md) for the VS Code setup.
 
 ## Data
  
@@ -165,5 +198,5 @@ recorded in `data/last_updated.json`.
 - No handling of equivalent or transfer credit
 - Data is at most 24 hours old; same-day section changes won't appear
 ## Built with
- 
-Python, Streamlit, BeautifulSoup, GitHub Actions
+
+Python standard library (`argparse`, `json`, `dataclasses`) and `pytest` for tests. No third-party runtime dependencies.
