@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +77,10 @@ def load_courses(path: str | Path) -> list[Course]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise ValueError(f"courses file not found: {path}")
+    except OSError as e:
+        raise ValueError(f"cannot read courses file {path}: {e.strerror}") from e
+    except UnicodeError as e:
+        raise ValueError(f"{path}: courses file must contain UTF-8 text") from e
     except json.JSONDecodeError as e:
         raise ValueError(f"{path}: invalid JSON: {e}")
     if not isinstance(data, dict) or not isinstance(data.get("courses"), list):

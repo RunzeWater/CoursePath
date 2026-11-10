@@ -136,3 +136,24 @@ def test_exclude_completed_with_nothing_completed_changes_nothing():
 def test_exclude_completed_when_everything_is_completed():
     done = {c.code for c in _catalogue()}
     assert check_all(_catalogue(), done, exclude_completed=True) == []
+
+
+def test_nested_failure_reasons_preserve_grouping():
+    course = _course("DEMO 401", {"op": "and", "children": [
+        {"course": "DEMO 101"},
+        {"op": "or", "children": [{"course": "DEMO 201"}, {"course": "DEMO 202"}]},
+    ]})
+    result = check_course(course, set())
+    assert result.reason == "missing DEMO 101 and (needs one of: missing DEMO 201 or missing DEMO 202)"
+
+
+def test_or_of_and_reasons_preserve_grouping():
+    course = _course("DEMO 401", {"op": "or", "children": [
+        {"op": "and", "children": [{"course": "DEMO 101"}, {"course": "DEMO 201"}]},
+        {"course": "DEMO 202"},
+    ]})
+    result = check_course(course, set())
+    assert result.reason == "needs one of: (missing DEMO 101 and missing DEMO 201) or missing DEMO 202"
+    result = check_course(course, {"DEMO 101", "DEMO 201"})
+    assert result.eligible
+    assert result.reason == "(has DEMO 101 and has DEMO 201)"

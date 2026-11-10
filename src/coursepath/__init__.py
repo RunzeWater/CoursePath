@@ -1,8 +1,6 @@
 """CoursePath: prerequisite eligibility from structured rule trees.
 
-Rule-tree format used by this scaffold (PROPOSAL — must be confirmed
-against AGENTS.md section 4 before A and B treat it as the contract;
-the README's own example is an AND of two ORs, which this mirrors):
+Rule-tree format used by this scaffold:
 
     {"course": "DEMO 101"}                          # leaf: completed?
     {"op": "and", "children": [<node>, ...]}         # every child passes
