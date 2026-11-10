@@ -1,0 +1,1 @@
+{"courses":[{"code":"DEMO 101","prerequisite":null,"raw_prerequisite":null,"title":"Demo Intro"},{"code":"DEMO 301","prerequisite":{"children":[{"course":"DEMO 101"},{"children":[{"course":"DEMO 201"},{"course":"DEMO 202"}],"op":"or"}],"op":"and"},"raw_prerequisite":"DEMO 101 and (DEMO 201 or DEMO 202)","title":"Demo Advanced Course"}]}
