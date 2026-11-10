@@ -1,5 +1,7 @@
 """Eligibility: success, failure, and boundary cases."""
 
+import pytest
+
 from coursepath.eligibility import check_all, check_course
 from coursepath.models import Course
 
@@ -58,3 +60,38 @@ def test_check_all_preserves_file_order_and_reasons():
     assert [r.code for r in results] == ["DEMO 101", "DEMO 201"]
     assert all(r.eligible for r in results)
     assert all(r.reason for r in results)  # every verdict carries a checkable reason
+
+
+# DEMO 101 AND (DEMO 201 OR (DEMO 202 AND (DEMO 203 OR DEMO 204))) — four levels deep.
+_DEEP_RULE = {"op": "and", "children": [
+    {"course": "DEMO 101"},
+    {"op": "or", "children": [
+        {"course": "DEMO 201"},
+        {"op": "and", "children": [
+            {"course": "DEMO 202"},
+            {"op": "or", "children": [{"course": "DEMO 203"}, {"course": "DEMO 204"}]},
+        ]},
+    ]},
+]}
+
+
+@pytest.mark.parametrize("completed, expected", [
+    ({"DEMO 101", "DEMO 201"}, True),                # shallow OR branch
+    ({"DEMO 101", "DEMO 202", "DEMO 203"}, True),    # deepest branch, first option
+    ({"DEMO 101", "DEMO 202", "DEMO 204"}, True),    # deepest branch, second option
+    ({"DEMO 101", "DEMO 202"}, False),               # inner AND half satisfied
+    ({"DEMO 101", "DEMO 203", "DEMO 204"}, False),   # inner AND missing DEMO 202
+    ({"DEMO 201", "DEMO 202", "DEMO 203"}, False),   # top-level AND missing DEMO 101
+    (set(), False),
+])
+def test_deeply_nested_rule(completed, expected):
+    result = check_course(_course("DEMO 401", _DEEP_RULE), completed)
+    assert result.eligible is expected
+
+
+def test_deeply_nested_failure_reason_names_missing_courses():
+    result = check_course(_course("DEMO 401", _DEEP_RULE), {"DEMO 101", "DEMO 202"})
+    assert result.eligible is False
+    for code in ("DEMO 201", "DEMO 203", "DEMO 204"):
+        assert code in result.reason
+    assert "DEMO 101" not in result.reason  # already satisfied, so not reported
