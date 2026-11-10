@@ -12,26 +12,40 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 
 from .eligibility import check_all
-from .models import load_courses
+from .models import load_courses, normalize_code
+
+
+def completed_code(value: str) -> str:
+    """Validate a quoted subject-and-number argument before checking eligibility."""
+    try:
+        code = normalize_code(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    if not re.fullmatch(r"[A-Z]+(?: [A-Z]+)* [0-9]+[A-Z]?", code):
+        raise argparse.ArgumentTypeError(
+            f'invalid completed course code: {value!r}; use quoted codes such as "DEMO 101"'
+        )
+    return code
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="coursepath", description="Check prerequisite eligibility from a sample courses file.")
     parser.add_argument("--courses", required=True, help="path to sample courses JSON")
-    parser.add_argument("--completed", nargs="*", default=[], help="completed course codes, e.g. DEMO 101 DEMO 201")
+    parser.add_argument("--completed", nargs="*", default=[], type=completed_code, help='completed course codes, e.g. --completed "DEMO 101" "DEMO 201"')
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON instead of text")
     args = parser.parse_args(argv)
 
     try:
         courses = load_courses(args.courses)
+        results = check_all(courses, set(args.completed))
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 
-    results = check_all(courses, set(args.completed))
     if args.json:
         print(json.dumps(
             [{"code": r.code, "eligible": r.eligible, "reason": r.reason} for r in results],

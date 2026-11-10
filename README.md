@@ -130,17 +130,17 @@ actual reason.
 - **No registration.** It does not connect to Bear Tracks and cannot enroll you.
 - **No waitlist, capacity, or seat-availability data.**
 ## Quickstart
- 
-```bash
-git clone https://github.com/RunzeWater/<REPO-NAME>.git
-cd <REPO-NAME>
-pip install -r requirements.txt
-streamlit run app.py
+
+Install the scaffold and its test dependencies from the project folder:
+
+```sh
+pip install -e ".[dev]"
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
+python -m pytest tests
 ```
- 
-<!-- Run these four lines in a fresh venv before pushing. A README with a
-     command that doesn't work is worse than no README. -->
- 
+
+See [RUNNING.md](RUNNING.md) for the working command-line scaffold setup, sample commands, and VS Code tasks.
+
 ## Data
  
 Scraped from the public UAlberta course catalogue

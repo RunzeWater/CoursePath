@@ -27,7 +27,12 @@ def _eval(node: dict, completed: set[str]) -> tuple[bool, str]:
             return True, f"has {code}"
         return False, f"missing {code}"
     op = node["op"]
-    results = [_eval(child, completed) for child in node["children"]]
+    results = []
+    for child in node["children"]:
+        ok, reason = _eval(child, completed)
+        if "op" in child:
+            reason = f"({reason})"
+        results.append((ok, reason))
     if op == "and":
         missing = [reason for ok, reason in results if not ok]
         if not missing:

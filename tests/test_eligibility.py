@@ -58,3 +58,24 @@ def test_check_all_preserves_file_order_and_reasons():
     assert [r.code for r in results] == ["DEMO 101", "DEMO 201"]
     assert all(r.eligible for r in results)
     assert all(r.reason for r in results)  # every verdict carries a checkable reason
+
+
+def test_nested_failure_reasons_preserve_grouping():
+    course = _course("DEMO 401", {"op": "and", "children": [
+        {"course": "DEMO 101"},
+        {"op": "or", "children": [{"course": "DEMO 201"}, {"course": "DEMO 202"}]},
+    ]})
+    result = check_course(course, set())
+    assert result.reason == "missing DEMO 101 and (needs one of: missing DEMO 201 or missing DEMO 202)"
+
+
+def test_or_of_and_reasons_preserve_grouping():
+    course = _course("DEMO 401", {"op": "or", "children": [
+        {"op": "and", "children": [{"course": "DEMO 101"}, {"course": "DEMO 201"}]},
+        {"course": "DEMO 202"},
+    ]})
+    result = check_course(course, set())
+    assert result.reason == "needs one of: (missing DEMO 101 and missing DEMO 201) or missing DEMO 202"
+    result = check_course(course, {"DEMO 101", "DEMO 201"})
+    assert result.eligible
+    assert result.reason == "(has DEMO 101 and has DEMO 201)"
