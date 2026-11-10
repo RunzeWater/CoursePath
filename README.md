@@ -1,169 +1,181 @@
 # CoursePath
 
-Plan a term at UAlberta end to end: check what you're eligible for, get a suggested course set, and turn it into a conflict-free timetable.
+A prerequisite eligibility checker for course planning: give it the courses you have completed, and it tells you which courses you can take and why.
+
+The long-term goal is to plan a UAlberta term end to end (eligibility, a suggested course set, a conflict-free timetable). Today only the eligibility step exists, and it runs on hand-written sample data. Everything else is listed under [Planned](#planned).
 
 ## Status
- 
+
 | Stage | What it does | Status |
 |---|---|---|
-| Eligibility | Parses prerequisites, checks them against your completed courses | 🚧 In progress |
-| Offering filter | Narrows to courses actually scheduled this term | ⬜ Not started |
-| Recommendation | Ranks eligible courses into a suggested set | ⬜ Not started |
-| Timetable | Builds conflict-free section combinations | ⬜ Not started |
- 
-Each stage feeds the next, so they land in this order.
- 
-## Demo
- 
-<!-- TODO: record a 10-second GIF once one full path works end to end.
-     Sequence: enter completed courses -> results appear. Nothing else,
-     no cursor wandering. Commit to docs/demo.gif. This single item does
-     more work than everything else in this file. -->
- 
-![Demo](docs/demo.gif)
- 
+| Eligibility | Reads structured prerequisite trees from JSON and checks them against your completed courses | ✅ Working (sample data only) |
+| Prerequisite text parsing | Turns catalogue sentences into prerequisite trees | ⬜ Planned |
+| Catalogue data | Scrapes real courses and sections from the UAlberta catalogue | ⬜ Planned |
+| Offering filter | Narrows to courses actually scheduled this term | ⬜ Planned |
+| Recommendation | Ranks eligible courses into a suggested set | ⬜ Planned |
+| Timetable | Builds conflict-free section combinations | ⬜ Planned |
+
+Each stage feeds the next, so they will land in this order.
+
+## Example
+
+With only `DEMO 101` completed, `DEMO 301` is not available yet, and the output says what is missing:
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101"
+```
+
+```
+[YES] DEMO 101: no prerequisite
+[NO ] DEMO 301: (needs one of: missing DEMO 201 or missing DEMO 202)
+```
+
+Add `DEMO 202` and it becomes eligible:
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 202"
+```
+
+```
+[YES] DEMO 101: no prerequisite
+[YES] DEMO 301: has DEMO 101 and (has DEMO 202)
+```
+
 ## The problem
 
-Picking a term's courses in Ualberta means answering four question in order, and the university's tools answer none of them
+Picking a term's courses at UAlberta means answering four questions in order, and the university's tools answer none of them.
 
-Prerequisites live inside each course's own catalogue entry, writing as English sentences--"CMPUT 174 or 275, and CMPUT 272 or Math 222"
+Prerequisites live inside each course's own catalogue entry, written as English sentences, such as "CMPUT 174 or 275, and CMPUT 272 or MATH 222".
 
-The true question that student actually wants to ask:" Giving that I have passed these courses, what can I take." then of those which are even offered this term. 
-Then which five are the right five? Then do their sections fit in a week without overlapping.
-Done by hand, that's a lot of tabs and a spreadsheet.and the mistake don't surface until registration day.
+The question a student actually wants to ask is: "Given that I have passed these courses, what can I take?" Then, of those, which are even offered this term?
+Then which five are the right five? Then do their sections fit in a week without overlapping?
+Done by hand, that's a lot of tabs and a spreadsheet, and the mistakes don't surface until registration day.
 
 ## How it works
 
-The pipeline is four stages, each consuming the previous one's output:
+The current flow has three steps:
 
 ```
-UAlberta catalogue
-   │  scraper — runs nightly, writes courses + sections to data/
+courses JSON file  +  your completed courses
+   │  load and validate — reject malformed prerequisite trees
    ▼
-local dataset  +  your completed courses
-   │  eligibility engine — recursive walk over parsed prerequisite trees
+list of courses, each with a prerequisite tree (or none)
+   │  eligibility check — recursive walk over each tree
    ▼
-eligible courses
-   │  offering filter — intersect with this term's scheduled sections
+one result per course: eligible or not, with a reason
+   │  command line — print as text or JSON
    ▼
-available courses
-   │  recommendation engine — rank by degree gap, prereq depth, load balance
-   ▼
-suggested set
-   │  timetable engine — backtracking search over section combinations
-   ▼
-conflict-free schedule
+output
 ```
 
-The order isn't a preference, it's a dependency. A recommendar without the eligibility stage suggests courses you cannot register for. A timetable builder without the recommender is just a scheduling tool you have to feed by hand
+### Prerequisite trees
 
-## Prerequisite parsing
+Prerequisites are stored as a tree, not as text. `DEMO 101 and (DEMO 201 or DEMO 202)` is written as:
 
-`CMPUT 175 or 275, and CMPUT 272 or MATH 222` is a boolean expression written in
-English, so it's parsed into a tree:
- 
+```json
+{
+  "op": "and",
+  "children": [
+    { "course": "DEMO 101" },
+    {
+      "op": "or",
+      "children": [
+        { "course": "DEMO 201" },
+        { "course": "DEMO 202" }
+      ]
+    }
+  ]
+}
 ```
-AND
-├── OR: CMPUT 175, CMPUT 275
-└── OR: CMPUT 272, MATH 222
-```
- 
-Eligibility is a recursive walk: `AND` passes when every child passes, `OR` when
-any child does, a leaf when its code is in the completed set.
 
-Two things make this harder than it looks.
-**Subject codes get elided** - 
-'CMPUT 201 and 272' means CMPUT 201 and CMPUT 272, with the subject started once and carried. Anything built on substring matching misses this silently, and silently is the dangerous part: nothing raises, the tool just reports a student
-as ineligible for a course they can take. And **phrasing is inconsistent** —
-`one of X, Y, or Z`, `X or Y or Z`, and `X, Y or Z` all appear and all mean the
-same thing.
- 
-<!-- TODO: replace with what you actually built, and publish the measured
-     accuracy on your hand-checked sample. A real number beats any adjective.
-     If it's bad, publish the bad number and say what breaks — that reads as
-     competence, not weakness. -->
+A node is either a course (`{"course": "DEMO 101"}`) or an operator with at least one child. The only operators are lowercase `and` and `or`. A course with no prerequisite has `"prerequisite": null`.
 
-<PARSING APPROACH: 2-3 sentences. Validated against <N> hand-checked
-prerequisite strings, <N>% correct.>
- 
-### Keeping the data fresh
-The catalogue is the upstream source of truth and it moves: sections get added and cancelled, time shift, prerequisites get reworded between calendar years. A dataset scraped once is wrong by the following term, and wrong quietly. 
+Each course record also has a `raw_prerequisite` string holding the original wording. It is kept for display and cross-checking only; the program never reads it to decide eligibility.
 
-So the scraper runs on a schedule rater than on demand.  A GitHub Actions cron job rescrapes nightly, writes the refreshed JSON to 'data/', and commits it back to the repo. The app always reads the committed snapshot, so a scrape failure degrades to yesterday's data instead of an empty page.
+### Loading and validation
 
-Two constraints shape the scraper:
- 
-- **It is polite.** Requests are rate-limited with a delay between pages and a
-  descriptive User-Agent. A nightly full crawl of a public catalogue is a small
-  load, but only if it's paced — an unthrottled loop over ten thousand pages is
-  indistinguishable from an attack.
-- **It fails loudly.** If a page's structure changes and a parse yields zero
-  courses, the job errors instead of committing an empty dataset over a good
-  one. Scrapers break when the site is redesigned; the question is whether you
-  find out from a failed build or from a user.
-<!-- TODO: once the cron job is running, add a line here with the actual
-     schedule and a link to the workflow file. If you add change detection
-     (diffing each run against the last so reworded prerequisites surface),
-     that's worth a sentence too. -->
- 
-### Where the LLM is and isn't
- 
-Ranking is deterministic. Degree gap, prerequisite chain depth, and workload
-balance are scored by explicit rules in code, not by a model. The LLM only
-turns an already-ordered result into readable explanation.
- 
-This boundary is deliberate. A model asked to both rank and justify will
-produce reasoning that sounds convincing and is post-hoc — and on a tool whose
-output determines what someone registers for, a plausible wrong answer is worse
-than no answer. Keeping the decision in code means the stated reason is the
-actual reason.
- 
-## What it does not do
- 
-<!-- Keep this section. Move items up to the status table only when they
-     genuinely work — don't quietly delete them as the project grows. -->
- 
-- **No degree audit against official program rules.** Recommendations use a
-  hand-encoded subset of requirements, not the full Calendar.
-- **CMPUT courses only.** Prerequisites naming other subjects are matched by
-  code, but those catalogues aren't loaded.
-- **No registration.** It does not connect to Bear Tracks and cannot enroll you.
-- **No waitlist, capacity, or seat-availability data.**
+The file is validated when it is loaded. An unknown operator (including `AND` in upper case), an empty `children` list, extra keys on a node, or a duplicate course code is rejected with an error instead of being silently accepted. Course codes are normalized, so `demo  101` and `DEMO 101` match.
+
+### Eligibility check
+
+Eligibility is a recursive walk over the tree: `and` passes when every child passes, `or` passes when any child does, and a course node passes when its code is in the completed set.
+
+The reason shown for each course is built during the same walk that makes the decision, so the stated reason is the actual reason.
+
 ## Quickstart
 
-Install the scaffold and its test dependencies from the project folder:
+Requires Python 3.10 or newer. From the project folder:
 
 ```sh
+python -m venv .venv
+# Windows (PowerShell): .\.venv\Scripts\Activate.ps1
+# macOS / Linux:        source .venv/bin/activate
 pip install -e ".[dev]"
-python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
-python -m pytest tests
+python -m pytest
 ```
 
-See [RUNNING.md](RUNNING.md) for the working command-line scaffold setup, sample commands, and VS Code tasks.
+Check eligibility against the bundled sample data (`DEMO` courses, not real UAlberta rules):
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 201"
+```
+
+```
+[YES] DEMO 101: no prerequisite
+[YES] DEMO 301: has DEMO 101 and (has DEMO 201)
+```
+
+### Command-line options
+
+| Option | What it does |
+|---|---|
+| `--courses PATH` | Courses JSON file (required). |
+| `--completed CODE [CODE ...]` | Courses you have completed. Quote each code, e.g. `"DEMO 101"`; codes are case- and space-insensitive. |
+| `--json` | Print the results as JSON instead of text. |
+| `--eligible-only` | Only show courses whose prerequisites are met. |
+| `--skip-completed` | Leave courses you have already completed out of the output. |
+
+`--eligible-only` and `--skip-completed` can be combined to list what you can take next:
+
+```sh
+python -m coursepath --courses data/sample_courses.json --completed "DEMO 101" "DEMO 202" --eligible-only --skip-completed
+```
+
+```
+[YES] DEMO 301: has DEMO 101 and (has DEMO 202)
+```
+
+Exit code is `0` whenever the check runs, even if some courses are ineligible; `2` means the input was invalid (bad file or bad course code). See [RUNNING.md](RUNNING.md) for the VS Code setup.
+
+## Planned
+
+None of this exists yet. It is the intended direction, not a description of the code.
+
+- **Prerequisite text parsing.** The catalogue writes prerequisites as English sentences, such as `CMPUT 175 or 275, and CMPUT 272 or MATH 222`. A parser will turn these into the tree format above. Two things will make this harder than it looks. Subject codes get elided: `CMPUT 201 and 272` means CMPUT 201 and CMPUT 272, and anything built on substring matching misses that silently. Phrasing is also inconsistent: `one of X, Y, or Z`, `X or Y or Z`, and `X, Y or Z` all mean the same thing. The parser's accuracy will be measured against a hand-checked sample and published here.
+- **Catalogue scraper.** A scraper will read the public UAlberta course catalogue (<https://apps.ualberta.ca/catalogue>) and write course and section records to `data/`. It will be rate-limited with a descriptive User-Agent, and it will fail the run rather than overwrite good data if a page yields zero courses.
+- **Scheduled refresh.** A scheduled job will rescrape nightly and commit the refreshed JSON, so a failed scrape will fall back to the previous day's data. The last successful run will be recorded in `data/last_updated.json`.
+- **Offering filter.** Will intersect eligible courses with the sections actually scheduled in a given term.
+- **Recommendation.** Will rank available courses by explicit rules in code (degree gap, prerequisite chain depth, workload balance). If a language model is used, it will only turn the already-ordered result into a readable explanation, never do the ranking, so the stated reason stays the actual reason.
+- **Timetable.** Will search section combinations for a schedule with no time conflicts.
 
 ## Data
- 
-Scraped from the public UAlberta course catalogue
-(<https://apps.ualberta.ca/catalogue>) and committed to `data/`. Course records
-hold prerequisites; section records hold meeting days and times.
- 
-Refreshed automatically by a scheduled workflow — see
-[Keeping the data fresh](#keeping-the-data-fresh). Last successful run is
-recorded in `data/last_updated.json`.
- 
+
+The only data in the repository is [`data/sample_courses.json`](data/sample_courses.json), a small hand-written file of `DEMO` courses. It is not scraped, and the course codes are examples, not real UAlberta prerequisite rules.
+
+To check your own courses, write a JSON file in the same format (see [Prerequisite trees](#prerequisite-trees)) and pass it with `--courses`.
+
 > Personal project, not affiliated with the University of Alberta. Confirm
 > eligibility in Bear Tracks or with an academic advisor before registering.
- 
+
 ## Limitations
- 
-<!-- "Known to be wrong right now" — distinct from unbuilt stages above.
-     Be specific enough that a reader can tell you went looking for your
-     own failure modes. -->
- 
-- <SPECIFIC PARSER FAILURE CASE — a phrasing it mishandles>
-- Consent-of-department and year-standing requirements are ignored
-- No handling of equivalent or transfer credit
-- Data is at most 24 hours old; same-day section changes won't appear
+
+- **Sample data only.** There is no real catalogue data, so the tool cannot yet answer questions about actual UAlberta courses unless you write the prerequisite trees yourself.
+- **Prerequisites are `and` / `or` of course codes, nothing else.** There is no field for mutually exclusive courses ("credit cannot be obtained for both"), corequisites, minimum grades, consent of the department, or year standing.
+- **No handling of equivalent or transfer credit.** A completed course only counts if its exact code appears in the tree.
+- **Circular and self-referencing prerequisites are not detected.** A course that lists itself as a prerequisite loads without error and is simply never eligible.
+- **Prerequisite codes are not checked against the file.** A tree can name a course that does not exist in the courses file, and a mistyped completed code that matches no course is accepted without a warning.
+- **No degree audit and no registration.** It does not know program requirements, does not connect to Bear Tracks, and has no waitlist, capacity, or seat data.
+
 ## Built with
- 
-Python, Streamlit, BeautifulSoup, GitHub Actions
+
+Python standard library (`argparse`, `json`, `dataclasses`) and `pytest` for tests. No third-party runtime dependencies.
