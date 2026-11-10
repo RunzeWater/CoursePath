@@ -95,3 +95,44 @@ def test_deeply_nested_failure_reason_names_missing_courses():
     for code in ("DEMO 201", "DEMO 203", "DEMO 204"):
         assert code in result.reason
     assert "DEMO 101" not in result.reason  # already satisfied, so not reported
+
+
+def _catalogue():
+    return [
+        _course("DEMO 101"),
+        _course("DEMO 102"),
+        _course("DEMO 201", {"course": "DEMO 101"}),
+        _course("DEMO 301", {"course": "DEMO 201"}),
+    ]
+
+
+def test_check_all_keeps_completed_courses_by_default():
+    results = check_all(_catalogue(), {"DEMO 101"})
+    assert [r.code for r in results] == ["DEMO 101", "DEMO 102", "DEMO 201", "DEMO 301"]
+
+
+def test_check_all_excludes_completed_courses():
+    results = check_all(_catalogue(), {"DEMO 101"}, exclude_completed=True)
+    # DEMO 101 is dropped; everything else stays, in file order, eligible or not.
+    assert [r.code for r in results] == ["DEMO 102", "DEMO 201", "DEMO 301"]
+    assert [r.eligible for r in results] == [True, True, False]
+
+
+def test_excluded_course_still_counts_as_a_prerequisite():
+    # Dropping DEMO 101 from the output must not stop it satisfying DEMO 201.
+    results = check_all(_catalogue(), {"DEMO 101", "DEMO 201"}, exclude_completed=True)
+    assert [(r.code, r.eligible) for r in results] == [("DEMO 102", True), ("DEMO 301", True)]
+
+
+def test_exclude_completed_normalizes_codes():
+    results = check_all(_catalogue(), {"demo  101"}, exclude_completed=True)
+    assert "DEMO 101" not in [r.code for r in results]
+
+
+def test_exclude_completed_with_nothing_completed_changes_nothing():
+    assert check_all(_catalogue(), set(), exclude_completed=True) == check_all(_catalogue(), set())
+
+
+def test_exclude_completed_when_everything_is_completed():
+    done = {c.code for c in _catalogue()}
+    assert check_all(_catalogue(), done, exclude_completed=True) == []

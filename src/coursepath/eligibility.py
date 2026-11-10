@@ -50,6 +50,20 @@ def check_course(course: Course, completed: set[str]) -> EligibilityResult:
     return EligibilityResult(course.code, ok, reason)
 
 
-def check_all(courses: list[Course], completed: set[str]) -> list[EligibilityResult]:
-    """Judge every course, in file order."""
+def check_all(
+    courses: list[Course],
+    completed: set[str],
+    *,
+    exclude_completed: bool = False,
+) -> list[EligibilityResult]:
+    """Judge every course, in file order.
+
+    With ``exclude_completed=True``, courses whose code is already in
+    ``completed`` are left out of the result. The default keeps them, so
+    existing callers see no change.
+    """
+    if exclude_completed:
+        # Course.code is normalized on construction, so normalize here to match.
+        done = {normalize_code(c) for c in completed}
+        courses = [c for c in courses if c.code not in done]
     return [check_course(c, completed) for c in courses]
